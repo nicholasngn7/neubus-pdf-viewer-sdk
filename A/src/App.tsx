@@ -3,30 +3,78 @@ import EditorToolbar from './components/EditorToolbar'
 import PageThumbnailList from './components/PageThumbnailList'
 import PdfViewer from './components/PdfViewer'
 import ViewerToolbar from './components/ViewerToolbar'
+import type { PdfDocumentState } from './hooks/usePdfFromBytes'
+import type { ViewMode } from './types/pdf'
 import './App.css'
+
+const DEFAULT_SCALE = 1.25
+
+const initialDocumentState: PdfDocumentState = {
+  pdfDoc: null,
+  pageCount: 0,
+  loadStatus: 'idle',
+  loadError: null,
+}
+
+function isPdfFile(file: File): boolean {
+  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+}
+
+function clampPage(page: number, pageCount: number): number {
+  if (pageCount <= 0) {
+    return 1
+  }
+  return Math.min(Math.max(page, 1), pageCount)
+}
 
 function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
-  const [pageCount, setPageCount] = useState(0)
+  const [pdfBytes, setPdfBytes] = useState<ArrayBuffer | null>(null)
+  const [fileReadError, setFileReadError] = useState<string | null>(null)
+  const [documentState, setDocumentState] = useState<PdfDocumentState>(initialDocumentState)
+
   const [currentPage, setCurrentPage] = useState(1)
+  const [viewMode, setViewMode] = useState<ViewMode>('continuous')
+  const [scale] = useState(DEFAULT_SCALE)
   const [isEditMode, setIsEditMode] = useState(false)
 
-  const hasDocument = fileName !== null
+  const { pdfDoc, pageCount, loadStatus, loadError } = documentState
+  const hasDocument = loadStatus === 'ready' && pdfDoc !== null
 
-  const handleFileSelect = useCallback((file: File) => {
-    const isPdf =
-      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-
-    if (!isPdf) {
+  const handleFileSelect = useCallback(async (file: File) => {
+    if (!isPdfFile(file)) {
       window.alert('Please select a PDF file.')
       return
     }
 
-    setFileName(file.name)
-    setPageCount(1)
-    setCurrentPage(1)
-    setIsEditMode(false)
+    setFileReadError(null)
+    setDocumentState(initialDocumentState)
+
+    try {
+      const bytes = await file.arrayBuffer()
+      setFileName(file.name)
+      setPdfBytes(bytes.slice(0))
+      setCurrentPage(1)
+      setIsEditMode(false)
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to read the selected PDF file.'
+      setFileName(null)
+      setPdfBytes(null)
+      setFileReadError(message)
+      setDocumentState({
+        pdfDoc: null,
+        pageCount: 0,
+        loadStatus: 'error',
+        loadError: message,
+      })
+    }
+  }, [])
+
+  const handleDocumentStateChange = useCallback((state: PdfDocumentState) => {
+    setDocumentState(state)
+    setCurrentPage((page) => clampPage(page, state.pageCount))
   }, [])
 
   const openFilePicker = () => {
@@ -36,17 +84,41 @@ function App() {
   const handleHeaderFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
-      handleFileSelect(file)
+      void handleFileSelect(file)
     }
     event.target.value = ''
   }
 
   const handleQuickDownload = () => {
-    if (!hasDocument) {
+    if (!pdfBytes || !fileName) {
       return
     }
-    window.alert('Quick Download will be available once PDF export is implemented.')
+
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    anchor.click()
+    URL.revokeObjectURL(url)
   }
+
+  const goToPage = useCallback(
+    (page: number) => {
+      setCurrentPage(clampPage(page, pageCount))
+    },
+    [pageCount],
+  )
+
+  const goToPreviousPage = () => {
+    goToPage(currentPage - 1)
+  }
+
+  const goToNextPage = () => {
+    goToPage(currentPage + 1)
+  }
+
+  const activeError = fileReadError ?? loadError
 
   return (
     <div className="app">
@@ -61,7 +133,7 @@ function App() {
         <div className="app-header__file-area">
           <span className="app-header__file-label">Document</span>
           <span
-            className={`app-header__file-name${hasDocument ? '' : ' app-header__file-name--empty'}`}
+            className={`app-header__file-name${fileName ? '' : ' app-header__file-name--empty'}`}
             title={fileName ?? undefined}
           >
             {fileName ?? 'No file selected'}
@@ -91,12 +163,19 @@ function App() {
         </div>
       </header>
 
+      {activeError && (
+        <div className="app-error-banner" role="alert">
+          {activeError}
+        </div>
+      )}
+
       <div className="app-workspace">
         <div className="app-sidebar">
           <PageThumbnailList
+            pdfDoc={pdfDoc}
             pageCount={pageCount}
             currentPage={currentPage}
-            onPageSelect={setCurrentPage}
+            onPageSelect={goToPage}
           />
         </div>
 
@@ -105,10 +184,24 @@ function App() {
             disabled={!hasDocument}
             currentPage={currentPage}
             pageCount={pageCount}
+            zoomPercent={Math.round(scale * 100)}
+            viewMode={viewMode}
             isEditMode={isEditMode}
+            onPreviousPage={goToPreviousPage}
+            onNextPage={goToNextPage}
+            onPageChange={goToPage}
+            onViewModeChange={setViewMode}
             onToggleEditMode={() => setIsEditMode((value) => !value)}
           />
-          <PdfViewer fileName={fileName} onFileSelect={handleFileSelect} />
+          <PdfViewer
+            fileName={fileName}
+            pdfBytes={pdfBytes}
+            currentPage={currentPage}
+            viewMode={viewMode}
+            scale={scale}
+            onFileSelect={handleFileSelect}
+            onDocumentStateChange={handleDocumentStateChange}
+          />
         </main>
 
         <aside className="app-edit-panel" aria-label="Edit mode panel">

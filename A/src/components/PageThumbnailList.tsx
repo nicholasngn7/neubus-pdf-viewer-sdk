@@ -1,15 +1,22 @@
+import type { PDFDocumentProxy } from 'pdfjs-dist'
+import PageCanvas from './PageCanvas'
+
 type PageThumbnailListProps = {
+  pdfDoc?: PDFDocumentProxy | null
   pageCount?: number
   currentPage?: number
   onPageSelect?: (page: number) => void
 }
 
+const THUMBNAIL_SCALE = 0.18
+
 export default function PageThumbnailList({
+  pdfDoc = null,
   pageCount = 0,
   currentPage = 1,
   onPageSelect,
 }: PageThumbnailListProps) {
-  const hasDocument = pageCount > 0
+  const hasDocument = pageCount > 0 && pdfDoc !== null
 
   return (
     <aside className="thumbnail-list" aria-label="Page thumbnails">
@@ -33,7 +40,14 @@ export default function PageThumbnailList({
                 aria-label={`Page ${pageNumber}`}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <div className="thumbnail-item__preview" aria-hidden="true" />
+                <div className="thumbnail-item__preview">
+                  <PageCanvas
+                    pdfDoc={pdfDoc}
+                    pageNumber={pageNumber}
+                    scale={THUMBNAIL_SCALE}
+                    className="thumbnail-item__canvas"
+                  />
+                </div>
                 <span className="thumbnail-item__label">{pageNumber}</span>
               </button>
             )
