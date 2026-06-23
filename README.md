@@ -8,20 +8,18 @@ This project is inspired by the provided demo video, which appears to show a doc
 
 ```text
 .
-├── A/   # Working MVP web app
+├── A/   # MVP app (React + TypeScript + Vite)
 ├── B/   # Architecture and design documentation
-└── C/   # Cursor AI usage log and validation notes
+└── C/   # Cursor usage log and validation notes
 ```
 
 ## Tech Stack
 
-* React
-* TypeScript
-* Vite
-* PDF.js / `pdfjs-dist` for browser PDF rendering
-* `pdf-lib` for PDF editing/export operations
+- React, TypeScript, Vite
+- `pdfjs-dist` (PDF.js) for browser PDF rendering
+- `pdf-lib` for page-level editing and export
 
-## Run Locally
+## Setup
 
 ```bash
 cd A
@@ -29,93 +27,86 @@ npm install
 npm run dev
 ```
 
-Then open the local Vite URL shown in the terminal.
+Open the local Vite URL shown in the terminal.
+
+## Build and Tests
+
+From `A/`:
+
+```bash
+npm run build
+npm run test:run
+```
+
+The Vitest suite (38 tests across 10 files) covers app shell behavior, toolbar wiring, editor helpers, zoom scale math, and in-memory pdf-lib rebuild logic. It does **not** validate PDF.js canvas output, exported file contents in an external viewer, or the browser print dialog.
 
 ## Implemented Features
 
-### PDF Viewing and Navigation
+These features are implemented in `A/` and documented in `C/validation.md`. PDF rendering, zoom/fit sizing, export file opening, and print require **manual** browser validation.
 
-* Upload/open a local PDF
-* Render PDF pages in the browser
-* Page navigation
-* Zoom in / zoom out
-* Fit-to-width
-* Fit-to-viewport
-* Continuous viewing mode
-* Single-page viewing mode
+### Viewing
 
-### PDF Editing
+- Local PDF upload (header button or viewer dropzone)
+- PDF.js canvas rendering in the browser
+- Page navigation (previous/next, page input, thumbnail rail)
+- Zoom in / out (25%–300%; toolbar percentage reflects render scale)
+- Fit to width (scales current page to viewer width)
+- Fit page (fit to viewport; toolbar label is “Fit page”)
+- Continuous mode (all pages stacked)
+- Single-page mode
 
-* Edit mode with document/page controls
-* Page selection
-* Rotate selected pages left/right
-* Reorder pages
-* Delete selected pages
-* Import/merge another PDF
-* Extract selected pages
-* Export/download edited PDF
+### Editing
 
-### Printing and Export
+- Edit mode toggle
+- Multi-select page thumbnails
+- Rotate selected pages
+- Reorder pages (Move Up / Move Down; not drag-and-drop)
+- Delete selected pages
+- Import / merge another PDF (appends all pages)
+- Extract selected pages to a new PDF download
 
-* Browser print action
-* Download current/edited PDF locally
-* Download extracted pages as a new PDF
+### Export and print
 
-## Inferred Requirements from Demo
+- Export / download edited PDF (editor panel)
+- Quick Download (header; edited PDF when dirty, otherwise original)
+- Browser print (iframe/blob print flow)
 
-The provided demo appears to show a PDF/document viewer integrated into a larger client application. The surrounding application owns search results, records, attachments, metadata, upload history, authentication, and backend persistence.
+## Not Implemented
 
-This MVP focuses on the viewer/editor module that such a host application could embed. The viewer/editor owns document rendering, navigation, page-level editing, print, download/export, and save handoff.
+This MVP intentionally does **not** include:
 
-## Intentional Scope Boundaries
+- WebAssembly-backed PDF rendering
+- True linearized byte-range HTTP loading demo (local `ArrayBuffer` only)
+- Backend upload API
+- Authentication or authorization
+- Database persistence
+- OCR or scan integration
+- Redaction or text annotation workflows
+- Digital signatures
+- Bookmark read/write
+- In-document text search
+- Full records/search host application
 
-This MVP does not implement:
-
-* Full records/search application
-* Backend upload API
-* Authentication or authorization
-* Database persistence
-* OCR
-* Scan integration
-* Production redaction workflow
-* Signature form fields
-* Bookmark read/write
-* True WebAssembly-backed PDF SDK rendering
-* Full linearized PDF byte-range streaming demo
-
-Linearized loading is documented as a production consideration. Because this MVP loads local files in the browser, true HTTP byte-range streaming is not fully demonstrable without a server-hosted linearized PDF and range-request support.
+Linearized loading is noted in `B/architecture.md` as a production consideration; demonstrating byte-range streaming would require a server-hosted PDF and range-request support.
 
 ## Documentation
 
-Additional documentation is included in:
-
-```text
-B/architecture.md
-C/cursor-plan.md
-C/cursor-transcript.md
-C/ai-change-log.md
-C/validation.md
-```
+| Path | Purpose |
+| --- | --- |
+| `B/architecture.md` | System design, tradeoffs, limitations |
+| `C/cursor-plan.md` | Cursor planning notes |
+| `C/ai-change-log.md` | AI-assisted change log |
+| `C/validation.md` | Validation checklist and manual test script |
 
 ## Validation
 
-Validation notes are documented in:
-
-```text
-C/validation.md
-```
-
-The validation checklist covers local setup, PDF upload, rendering, navigation, zoom controls, view modes, edit mode, page operations, export/download, print, and error handling.
+See `C/validation.md` for the full checklist. Automated tests complement manual checks for rendering fidelity, zoom/fit appearance, exported PDFs opened externally, and the native print dialog.
 
 ## If I Had One More Day
 
-With one additional day, I would focus on:
-
-* Improving thumbnail rendering and selection performance for large documents
-* Adding undo/redo for page operations
-* Improving accessibility for toolbar actions and keyboard navigation
-* Adding better drag-and-drop page reordering
-* Adding server-backed PDF loading to demonstrate linearized/range-based loading
-* Adding automated tests for document operations
-* Evaluating a WebAssembly-backed PDF SDK for higher-fidelity rendering and advanced annotation support
-* Expanding the save/upload handoff contract for integration with a host records application
+- Undo/redo for page operations
+- Virtualized thumbnails and continuous scroll for large documents
+- Drag-and-drop page reordering
+- Server-hosted PDF loading to demonstrate linearized/range-based streaming
+- Stronger toolbar accessibility and keyboard navigation
+- Host-app save/upload handoff contract for records integration
