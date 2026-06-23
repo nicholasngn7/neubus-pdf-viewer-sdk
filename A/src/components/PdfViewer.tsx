@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+  type RefObject,
+} from 'react'
 import { usePdfFromBytes, type PdfDocumentState } from '../hooks/usePdfFromBytes'
 import type { ViewMode } from '../types/pdf'
 import PageCanvas from './PageCanvas'
@@ -9,6 +16,7 @@ type PdfViewerProps = {
   currentPage: number
   viewMode: ViewMode
   scale: number
+  canvasAreaRef?: RefObject<HTMLDivElement | null>
   onFileSelect: (file: File) => void
   onDocumentStateChange: (state: PdfDocumentState) => void
 }
@@ -19,11 +27,13 @@ export default function PdfViewer({
   currentPage,
   viewMode,
   scale,
+  canvasAreaRef: externalCanvasAreaRef,
   onFileSelect,
   onDocumentStateChange,
 }: PdfViewerProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const canvasAreaRef = useRef<HTMLDivElement>(null)
+  const internalCanvasAreaRef = useRef<HTMLDivElement>(null)
+  const canvasAreaRef = externalCanvasAreaRef ?? internalCanvasAreaRef
   const [isDragging, setIsDragging] = useState(false)
 
   const { pdfDoc, pageCount, loadStatus, loadError } = usePdfFromBytes(pdfBytes)

@@ -13,6 +13,10 @@ type ViewerToolbarProps = {
   onPageChange?: (page: number) => void
   onViewModeChange?: (mode: ViewMode) => void
   onToggleEditMode?: () => void
+  onZoomIn?: () => void
+  onZoomOut?: () => void
+  onFitWidth?: () => void
+  onFitPage?: () => void
 }
 
 export default function ViewerToolbar({
@@ -27,6 +31,10 @@ export default function ViewerToolbar({
   onPageChange,
   onViewModeChange,
   onToggleEditMode,
+  onZoomIn,
+  onZoomOut,
+  onFitWidth,
+  onFitPage,
 }: ViewerToolbarProps) {
   const [pageInput, setPageInput] = useState(String(currentPage))
 
@@ -89,17 +97,41 @@ export default function ViewerToolbar({
       </div>
 
       <div className="toolbar-group" aria-label="Zoom controls">
-        <button type="button" className="toolbar-btn" disabled={disabled} title="Zoom out">
+        <button
+          type="button"
+          className="toolbar-btn"
+          disabled={disabled}
+          title="Zoom out"
+          onClick={onZoomOut}
+        >
           −
         </button>
         <span className="toolbar-label">{disabled ? '—%' : `${zoomPercent}%`}</span>
-        <button type="button" className="toolbar-btn" disabled={disabled} title="Zoom in">
+        <button
+          type="button"
+          className="toolbar-btn"
+          disabled={disabled}
+          title="Zoom in"
+          onClick={onZoomIn}
+        >
           +
         </button>
-        <button type="button" className="toolbar-btn" disabled={disabled} title="Fit to width">
+        <button
+          type="button"
+          className="toolbar-btn"
+          disabled={disabled}
+          title="Fit to width"
+          onClick={onFitWidth}
+        >
           Fit width
         </button>
-        <button type="button" className="toolbar-btn" disabled={disabled} title="Fit to page">
+        <button
+          type="button"
+          className="toolbar-btn"
+          disabled={disabled}
+          title="Fit page (fit to viewport)"
+          onClick={onFitPage}
+        >
           Fit page
         </button>
       </div>

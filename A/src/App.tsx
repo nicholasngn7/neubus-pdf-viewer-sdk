@@ -6,13 +6,12 @@ import PdfViewer from './components/PdfViewer'
 import StatusToast from './components/StatusToast'
 import ViewerToolbar from './components/ViewerToolbar'
 import { usePdfEditor } from './hooks/usePdfEditor'
+import { useViewerZoom } from './hooks/useViewerZoom'
 import type { PdfDocumentState } from './hooks/usePdfFromBytes'
 import { MESSAGES } from './lib/messages'
 import { isPdfFile } from './lib/validation/isPdfFile'
 import type { ViewMode } from './types/pdf'
 import './App.css'
-
-const DEFAULT_SCALE = 1.25
 
 const initialDocumentState: PdfDocumentState = {
   pdfDoc: null,
@@ -24,6 +23,7 @@ const initialDocumentState: PdfDocumentState = {
 function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
+  const canvasAreaRef = useRef<HTMLDivElement>(null)
 
   const editor = usePdfEditor()
   const {
@@ -54,12 +54,26 @@ function App() {
   const [documentState, setDocumentState] = useState<PdfDocumentState>(initialDocumentState)
   const [currentPage, setCurrentPage] = useState(1)
   const [viewMode, setViewMode] = useState<ViewMode>('continuous')
-  const [scale] = useState(DEFAULT_SCALE)
   const [isEditMode, setIsEditMode] = useState(false)
 
   const { pdfDoc, pageCount: viewerPageCount, loadStatus, loadError } = documentState
   const pageCount = viewerPageCount || editorPageCount
   const hasDocument = editorPageCount > 0 && (loadStatus === 'ready' || loadStatus === 'loading')
+
+  const {
+    zoomScale,
+    zoomPercent,
+    resetZoom,
+    handleZoomIn,
+    handleZoomOut,
+    handleFitWidth,
+    handleFitPage,
+  } = useViewerZoom({
+    canvasAreaRef,
+    pdfDoc,
+    currentPage,
+    hasDocument,
+  })
   const editorDisabled = !hasDocument || !isEditMode || editorStatus.isBusy
   const selectionRequired = selectedPages.size === 0
 
@@ -89,6 +103,7 @@ function App() {
       clearTransientErrors()
       setDocumentState(initialDocumentState)
       setIsEditMode(false)
+      resetZoom()
 
       try {
         const bytes = await file.arrayBuffer()
@@ -107,7 +122,7 @@ function App() {
         })
       }
     },
-    [openFile, resetEditor],
+    [openFile, resetEditor, resetZoom],
   )
 
   const handleDocumentStateChange = useCallback(
@@ -283,7 +298,7 @@ function App() {
             disabled={!hasDocument}
             currentPage={currentPage}
             pageCount={pageCount}
-            zoomPercent={Math.round(scale * 100)}
+            zoomPercent={zoomPercent}
             viewMode={viewMode}
             isEditMode={isEditMode}
             onPreviousPage={goToPreviousPage}
@@ -291,13 +306,18 @@ function App() {
             onPageChange={goToPage}
             onViewModeChange={setViewMode}
             onToggleEditMode={handleToggleEditMode}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onFitWidth={() => void handleFitWidth()}
+            onFitPage={() => void handleFitPage()}
           />
           <PdfViewer
             fileName={fileName}
             pdfBytes={pdfBytes}
             currentPage={currentPage}
             viewMode={viewMode}
-            scale={scale}
+            scale={zoomScale}
+            canvasAreaRef={canvasAreaRef}
             onFileSelect={handleFileSelect}
             onDocumentStateChange={handleDocumentStateChange}
           />

@@ -55,4 +55,43 @@ describe('ViewerToolbar', () => {
     expect(onNextPage).toHaveBeenCalledOnce()
     expect(onToggleEditMode).toHaveBeenCalledOnce()
   })
+
+  it('calls zoom and fit handlers when enabled', async () => {
+    const user = userEvent.setup()
+    const onZoomIn = vi.fn()
+    const onZoomOut = vi.fn()
+    const onFitWidth = vi.fn()
+    const onFitPage = vi.fn()
+
+    render(
+      <ViewerToolbar
+        disabled={false}
+        currentPage={1}
+        pageCount={3}
+        onZoomIn={onZoomIn}
+        onZoomOut={onZoomOut}
+        onFitWidth={onFitWidth}
+        onFitPage={onFitPage}
+      />,
+    )
+
+    await user.click(screen.getByTitle('Zoom in'))
+    await user.click(screen.getByTitle('Zoom out'))
+    await user.click(screen.getByTitle('Fit to width'))
+    await user.click(screen.getByTitle('Fit page (fit to viewport)'))
+
+    expect(onZoomIn).toHaveBeenCalledOnce()
+    expect(onZoomOut).toHaveBeenCalledOnce()
+    expect(onFitWidth).toHaveBeenCalledOnce()
+    expect(onFitPage).toHaveBeenCalledOnce()
+  })
+
+  it('disables zoom and fit controls when no document is loaded', () => {
+    render(<ViewerToolbar disabled />)
+
+    expect(screen.getByTitle('Zoom in')).toBeDisabled()
+    expect(screen.getByTitle('Zoom out')).toBeDisabled()
+    expect(screen.getByTitle('Fit to width')).toBeDisabled()
+    expect(screen.getByTitle('Fit page (fit to viewport)')).toBeDisabled()
+  })
 })
