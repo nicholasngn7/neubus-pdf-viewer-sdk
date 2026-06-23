@@ -1,5 +1,18 @@
 import { useCallback, useState } from 'react'
+import {
+  deleteSelectedPages,
+  getPagesForExtraction,
+  moveSelectedPages,
+  rotateSelectedPages,
+  createImportedPages,
+} from '../lib/editor/pageOperations'
+import {
+  clearPageSelection,
+  selectSinglePage,
+  togglePageInSelection,
+} from '../lib/editor/selection'
 import { buildEditedFileName, downloadPdfBytes, printPdfBytes } from '../lib/fileIO'
+import { clampPage } from '../lib/navigation/clampPage'
 import { MESSAGES, normalizeEditorError } from '../lib/messages'
 import {
   buildPdfBytes,
@@ -9,25 +22,12 @@ import {
 import {
   createPageId,
   createPagesFromPdf,
-  rotateLeft,
-  rotateRight,
   type EditorStatus,
   type PageSource,
 } from '../types/edits'
 
 function cloneBytes(bytes: ArrayBuffer): ArrayBuffer {
   return bytes.slice(0)
-}
-
-function sortSelectedPages(selectedPages: Set<number>): number[] {
-  return [...selectedPages].sort((left, right) => left - right)
-}
-
-function clampPage(page: number, pageCount: number): number {
-  if (pageCount <= 0) {
-    return 1
-  }
-  return Math.min(Math.max(page, 1), pageCount)
 }
 
 const idleStatus: EditorStatus = {
@@ -102,23 +102,15 @@ export function usePdfEditor() {
   }, [])
 
   const clearSelection = useCallback(() => {
-    setSelectedPages(new Set())
+    setSelectedPages(clearPageSelection())
   }, [])
 
   const togglePageSelection = useCallback((pageNumber: number) => {
-    setSelectedPages((current) => {
-      const next = new Set(current)
-      if (next.has(pageNumber)) {
-        next.delete(pageNumber)
-      } else {
-        next.add(pageNumber)
-      }
-      return next
-    })
+    setSelectedPages((current) => togglePageInSelection(current, pageNumber))
   }, [])
 
   const selectPage = useCallback((pageNumber: number) => {
-    setSelectedPages(new Set([pageNumber]))
+    setSelectedPages(selectSinglePage(pageNumber))
   }, [])
 
   const rotateSelected = useCallback(
@@ -128,19 +120,8 @@ export function usePdfEditor() {
         return
       }
 
-      const rotate = direction === 'left' ? rotateLeft : rotateRight
       const selected = new Set(selectedPages)
-
-      const nextPages = pages.map((page, index) => {
-        if (!selected.has(index + 1)) {
-          return page
-        }
-
-        return {
-          ...page,
-          rotation: rotate(page.rotation),
-        }
-      })
+      const nextPages = rotateSelectedPages(pages, selected, direction)
 
       await applyPages(
         nextPages,
@@ -151,12 +132,14 @@ export function usePdfEditor() {
   )
 
   const deleteSelected = useCallback(async () => {
-    if (selectedPages.size === 0) {
-      setStatus({ message: null, error: MESSAGES.noSelection, isBusy: false })
-      return
-    }
+    const result = deleteSelectedPages(pages, selectedPages)
 
-    if (selectedPages.size >= pages.length) {
+    if (!result.ok) {
+      if (result.error === 'no-selection') {
+        setStatus({ message: null, error: MESSAGES.noSelection, isBusy: false })
+        return
+      }
+
       setStatus({
         message: null,
         error: 'At least one page must remain in the document.',
@@ -165,55 +148,40 @@ export function usePdfEditor() {
       return
     }
 
-    const selected = new Set(selectedPages)
-    const nextPages = pages.filter((_, index) => !selected.has(index + 1))
-
-    setSelectedPages(new Set())
+    setSelectedPages(clearPageSelection())
     await applyPages(
-      nextPages,
-      `Deleted ${selected.size} page${selected.size === 1 ? '' : 's'}.`,
+      result.pages,
+      `Deleted ${selectedPages.size} page${selectedPages.size === 1 ? '' : 's'}.`,
     )
   }, [applyPages, pages, selectedPages])
 
   const moveSelected = useCallback(
     async (direction: 'up' | 'down') => {
-      if (selectedPages.size === 0) {
-        setStatus({ message: null, error: MESSAGES.noSelection, isBusy: false })
-        return
-      }
+      const result = moveSelectedPages(pages, selectedPages, direction)
 
-      const selected = sortSelectedPages(selectedPages)
-      const nextPages = [...pages]
+      if (!result.ok) {
+        if (result.error === 'no-selection') {
+          setStatus({ message: null, error: MESSAGES.noSelection, isBusy: false })
+          return
+        }
 
-      if (direction === 'up') {
-        const firstIndex = selected[0] - 1
-        if (firstIndex <= 0) {
+        if (result.error === 'at-top') {
           setStatus({ message: 'Selected pages are already at the top.', error: null, isBusy: false })
           return
         }
 
-        const swapIndex = firstIndex - 1
-        ;[nextPages[swapIndex], nextPages[firstIndex]] = [nextPages[firstIndex], nextPages[swapIndex]]
-        setSelectedPages(new Set(selected.map((page) => page - 1)))
-      } else {
-        const lastIndex = selected[selected.length - 1] - 1
-        if (lastIndex >= nextPages.length - 1) {
-          setStatus({
-            message: 'Selected pages are already at the bottom.',
-            error: null,
-            isBusy: false,
-          })
-          return
-        }
-
-        const swapIndex = lastIndex + 1
-        ;[nextPages[lastIndex], nextPages[swapIndex]] = [nextPages[swapIndex], nextPages[lastIndex]]
-        setSelectedPages(new Set(selected.map((page) => page + 1)))
+        setStatus({
+          message: 'Selected pages are already at the bottom.',
+          error: null,
+          isBusy: false,
+        })
+        return
       }
 
+      setSelectedPages(result.selectedPages)
       await applyPages(
-        nextPages,
-        `Moved ${selected.length} page${selected.length === 1 ? '' : 's'} ${direction}.`,
+        result.pages,
+        `Moved ${selectedPages.size} page${selectedPages.size === 1 ? '' : 's'} ${direction}.`,
       )
     },
     [applyPages, pages, selectedPages],
@@ -231,12 +199,7 @@ export function usePdfEditor() {
       try {
         const copiedBytes = cloneBytes(bytes)
         const importPageCount = await getPdfPageCount(copiedBytes)
-        const importedPages: PageSource[] = Array.from({ length: importPageCount }, (_, index) => ({
-          id: createPageId(),
-          sourceBytes: copiedBytes,
-          sourcePageIndex: index,
-          rotation: 0,
-        }))
+        const importedPages = createImportedPages(copiedBytes, importPageCount, createPageId)
 
         await applyPages(
           [...pages, ...importedPages],
@@ -259,8 +222,13 @@ export function usePdfEditor() {
     setStatus({ message: null, error: null, isBusy: true })
 
     try {
-      const selected = sortSelectedPages(selectedPages)
-      const extractedPages = selected.map((pageNumber) => pages[pageNumber - 1])
+      const extractedPages = getPagesForExtraction(pages, selectedPages)
+      if (!extractedPages) {
+        setStatus({ message: null, error: MESSAGES.noSelection, isBusy: false })
+        return
+      }
+
+      const selected = [...selectedPages].sort((left, right) => left - right)
       const output = await buildPdfBytes(extractedPages)
       const downloadName = buildEditedFileName(fileName ?? 'document', 'extract')
       downloadPdfBytes(output, downloadName)

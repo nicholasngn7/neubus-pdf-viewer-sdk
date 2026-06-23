@@ -8,6 +8,7 @@ import ViewerToolbar from './components/ViewerToolbar'
 import { usePdfEditor } from './hooks/usePdfEditor'
 import type { PdfDocumentState } from './hooks/usePdfFromBytes'
 import { MESSAGES } from './lib/messages'
+import { isPdfFile } from './lib/validation/isPdfFile'
 import type { ViewMode } from './types/pdf'
 import './App.css'
 
@@ -18,10 +19,6 @@ const initialDocumentState: PdfDocumentState = {
   pageCount: 0,
   loadStatus: 'idle',
   loadError: null,
-}
-
-function isPdfFile(file: File): boolean {
-  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
 }
 
 function App() {
