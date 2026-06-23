@@ -26,6 +26,8 @@ todos:
 isProject: false
 ---
 
+> **Historical artifact:** This file is the original Cursor Plan-mode output from before implementation. It describes intended scope, structure, and phased delivery—not the final shipped MVP. For what was actually built and validated, see [`C/validation.md`](validation.md) and [`C/ai-change-log.md`](ai-change-log.md). Do not treat unchecked plan items or deferred phases here as current product gaps unless they also appear in those delivery documents.
+
 # PDF Viewer/Editor MVP — Implementation Plan
 
 ## Scope (MVP)

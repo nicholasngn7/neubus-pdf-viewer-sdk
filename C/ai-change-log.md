@@ -20,7 +20,7 @@ Plan mode was used before implementation. The plan was saved as [`C/cursor-plan.
 - Dual-library approach (pdfjs-dist + pdf-lib)
 - Explicit out-of-scope items (OCR, auth, backend, signatures, etc.)
 
-Implementation generally followed the plan for page-level editing and export, but several plan items were intentionally deferred (see below).
+Implementation generally followed the plan for page-level editing, export, and viewer controls (including zoom in/out, fit-to-width, and fit-to-page). Several plan items were intentionally deferred (see below). Delivered scope is documented in [`C/validation.md`](validation.md), not in the original plan file.
 
 ## Changes Made From AI Output (and Why)
 
@@ -32,7 +32,7 @@ Implementation generally followed the plan for page-level editing and export, bu
 | Immediate pdf-lib sync on every keystroke | Rebuild bytes after discrete page ops | Simpler correctness for rotate/delete/reorder/import |
 | Placeholder “PDF rendering will appear here” shell | Wired `pdfBytes` → PDF.js → `PageCanvas` | Required for a working demo |
 | `usePdfDocument` loading inside hook only | `pdfBytes` in App + `usePdfFromBytes` in viewer | Clearer data flow and easier debugging |
-| README claiming zoom/fit fully work | Documented as partial in architecture/validation | Toolbar buttons exist but are not wired |
+| README / validation accuracy for zoom/fit | Aligned docs with wired toolbar behavior | Zoom in/out, fit-to-width, and fit-to-page are implemented; visual PDF.js canvas sizing still requires manual browser validation |
 
 ## Manual Fixes After Cursor Output
 
@@ -75,7 +75,6 @@ These were considered but **not implemented** in this repo:
 | --- | --- |
 | In-PDF text search | Time; not required for page-level edit demo |
 | Text annotations / redaction | Different product surface; out of MVP scope |
-| Zoom/fit wiring | Toolbar placeholders shipped; behavior deferred |
 | Undo/redo | Needs operation history; cut for time |
 | Drag-and-drop reorder | Move Up/Down sufficient for MVP |
 | Backend upload / auth / DB | Explicitly out of scope |
@@ -90,18 +89,25 @@ These were considered but **not implemented** in this repo:
 - Local PDF open/upload (header + viewer dropzone)
 - PDF.js rendering to canvas (single + continuous modes)
 - Page navigation and thumbnail rail
+- Zoom in/out, fit-to-width, and fit-to-page (fit-to-viewport) via viewer toolbar
 - Edit mode with multi-select pages
 - Rotate, delete, Move Up/Down reorder
 - Import/merge (append all pages from another PDF)
 - Extract selected pages
 - Export / Quick Download / Print
 - Success toast and user-friendly error messages
-- Vitest unit/integration tests for shell, utilities, and pdf-lib rebuild (not render fidelity)
+- Vitest unit/integration tests for shell, utilities, zoom scale math, and pdf-lib rebuild (not PDF.js render fidelity)
+
+**Manual browser validation still required for:**
+
+- PDF.js canvas rendering fidelity
+- Visual zoom/fit sizing (toolbar `+` / `−`, Fit width, Fit page)
+- Exported and extracted PDFs opened in an external viewer
+- Browser print dialog
 
 **Not implemented (do not claim):**
 
-- Working zoom in/out or fit-to-width / fit-to-page (UI only)
-- Search, OCR, redaction, signatures, bookmarks
-- Backend upload, authentication, database
+- In-document text search, OCR, redaction, text annotations, signatures, bookmark read/write
+- Backend upload, authentication, database persistence
 - WebAssembly rendering
-- True linearized HTTP byte-range streaming demo
+- True linearized HTTP byte-range streaming demo (MVP loads local `ArrayBuffer` only)
