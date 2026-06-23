@@ -1,6 +1,6 @@
 # Validation — Neubus PDF Viewer SDK MVP
 
-This checklist reflects the **actual** state of the MVP in `A/` as of the timeboxed delivery. Items marked **Partial** or **Manual** should not be treated as fully automated or complete product features.
+This checklist reflects the **actual** state of the MVP in `A/`, aligned with `README.md` and `B/architecture.md`. Items marked **Pass (manual)** are implemented in the app but require browser verification. Items in the out-of-scope list are not implemented.
 
 ## Commands
 
@@ -53,16 +53,17 @@ npm run test:run
 
 Do **not** expect these in the MVP:
 
-- WebAssembly PDF rendering
-- Redaction workflow
-- Digital signatures
-- Bookmark read/write
+- WebAssembly-backed PDF rendering
+- True linearized PDF byte-range HTTP streaming demo (local `ArrayBuffer` only)
 - Backend upload API
 - Authentication or authorization
 - Database persistence
 - OCR or scan integration
-- True linearized PDF byte-range HTTP streaming
+- Redaction or text annotation workflows
+- Digital signatures
+- Bookmark read/write
 - In-document text search
+- Full records/search host application
 
 ---
 
@@ -70,7 +71,7 @@ Do **not** expect these in the MVP:
 
 ### Automated tests
 
-The Vitest suite (`npm run test:run`) provides confidence for logic and UI shell behavior **without** claiming PDF rendering fidelity or print behavior.
+The Vitest suite (`npm run test:run`) — **38 tests across 10 files** — provides confidence for app shell behavior, toolbar wiring, editor helpers, zoom scale math, and in-memory pdf-lib rebuild logic. It does **not** claim PDF rendering fidelity, exported file contents in an external viewer, or print behavior.
 
 | Area | Test location | What is covered |
 | --- | --- | --- |
@@ -85,24 +86,25 @@ The Vitest suite (`npm run test:run`) provides confidence for logic and UI shell
 | Export naming | `A/src/lib/fileIO.test.ts` | Edited/extract filename helpers |
 | pdf-lib rebuild | `A/src/lib/pdfLib/buildDocument.test.ts` | Page count and rotation in rebuilt PDF (in-memory) |
 
-**Not automated:**
+**Requires manual browser validation:**
 
-- PDF.js canvas pixel output
+- PDF.js canvas rendering fidelity
+- Visual zoom/fit sizing (toolbar `+` / `−`, Fit width, Fit page)
+- Exported and extracted PDF files opened externally (Preview, Adobe, browser)
 - Browser print dialog
-- Visual zoom/fit sizing accuracy (manual spot check recommended)
-- End-to-end edit-then-open-in-Preview verification (manual spot check recommended)
 
 ### Manual validation
 
 Perform these in a browser after `npm run dev`:
 
 1. **Rendering** — Open a multi-page PDF; confirm pages render in continuous and single modes.
-2. **PDF.js canvas** — Rotate a page; confirm viewer updates without canvas reuse errors.
-3. **Edit/export** — Delete or reorder pages, export, open downloaded PDF in Preview/Adobe/browser; confirm page count, order, and rotation.
-4. **Extract** — Select pages, extract, open extracted file.
-5. **Print** — Use Print; confirm browser print dialog appears (allow pop-ups if blocked).
-6. **Quick Download** — Download before and after an edit; confirm filename and content match expectation.
-7. **Errors** — Upload a non-PDF; confirm friendly error message.
+2. **Zoom and fit** — Use `+` / `−`, Fit width, and Fit page; confirm rendered size and toolbar percentage change.
+3. **PDF.js canvas** — Rotate a page; confirm viewer updates without canvas reuse errors.
+4. **Edit/export** — Delete or reorder pages, export, open downloaded PDF in Preview/Adobe/browser; confirm page count, order, and rotation.
+5. **Extract** — Select pages, extract, open extracted file externally.
+6. **Print** — Use Print; confirm browser print dialog appears (allow pop-ups if blocked).
+7. **Quick Download** — Download before and after an edit; confirm filename and content match expectation.
+8. **Errors** — Upload a non-PDF; confirm friendly error message.
 
 ---
 
@@ -113,11 +115,11 @@ Perform these in a browser after `npm run dev`:
 3. Toggle Single ↔ Continuous → verify layout
 4. Use `+` / `−`, Fit width, and Fit page → verify rendered size and zoom percentage change
 5. Enable Edit mode → select page 2 → rotate right → confirm visual change
-5. Move page down → delete a page → Import a second PDF → Export edited PDF
-6. Open exported file externally → confirm edits persisted
-7. Extract one page → open extract file
-8. Quick Download and Print once each
-9. Try uploading `notes.txt` → confirm error banner
+6. Move page down → delete a page → Import a second PDF → Export edited PDF
+7. Open exported file externally → confirm edits persisted
+8. Extract one page → open extract file externally
+9. Quick Download and Print once each
+10. Try uploading `notes.txt` → confirm error banner
 
 ---
 
@@ -128,4 +130,4 @@ npm run test:run
 # 10 test files, 38 tests (as of MVP delivery)
 ```
 
-Automated tests pass in CI/local Node; they complement but do not replace manual PDF and print validation.
+Automated tests pass in CI/local Node; they complement but do not replace manual validation of PDF.js rendering, zoom/fit appearance, exported PDFs opened externally, and the browser print dialog.

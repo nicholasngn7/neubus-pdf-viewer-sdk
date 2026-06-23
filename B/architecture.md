@@ -14,7 +14,7 @@ The provided demo appears to show a PDF viewer embedded inside a larger applicat
 | --- | --- |
 | Open/view a PDF attachment | Implemented (local file upload) |
 | Page navigation and thumbnails | Implemented |
-| Zoom and fit controls | Implemented (see limitations for manual validation) |
+| Zoom and fit controls | Implemented (`useViewerZoom`; manual visual validation) |
 | Continuous and single-page viewing | Implemented |
 | Edit mode with page manipulation | Implemented |
 | Rotate, reorder, delete pages | Implemented |
@@ -45,6 +45,7 @@ This MVP owns:
 
 - Local PDF open/upload (client-only)
 - PDF rendering and navigation
+- Zoom in/out, fit to width, and fit page (viewport fit; toolbar label “Fit page”)
 - Thumbnail page rail
 - Continuous and single-page view modes
 - Edit mode with page selection
@@ -67,9 +68,10 @@ This MVP owns:
 |    |-- Header: Open PDF | Print | Quick Download                 |
 |    |-- StatusToast / error banners                                 |
 |    |-- usePdfEditor() ............... pdf-lib edit + export state |
+|    |-- useViewerZoom() ............. zoom scale + fit-to-width/page |
 |    |-- PdfViewer ── usePdfFromBytes() pdfjs-dist load/render     |
 |    |-- PageThumbnailList ── PageCanvas (thumbnails)               |
-|    |-- ViewerToolbar (navigation, view mode, edit toggle)          |
+|    |-- ViewerToolbar (navigation, zoom/fit, view mode, edit toggle) |
 |    |-- EditorToolbar + EditorPanel (page ops, export, print)       |
 +------------------------------------------------------------------+
          |                              |
@@ -101,13 +103,15 @@ Future host app (not in repo):
 | `PdfViewer.tsx` | Empty/loading/error states; continuous vs single layout; delegates render to `PageCanvas` |
 | `PageCanvas.tsx` | Renders one PDF page to `<canvas>` via PDF.js; manages render task cancellation |
 | `PageThumbnailList.tsx` | Page rail; selection in edit mode; thumbnail previews |
-| `ViewerToolbar.tsx` | Page nav, zoom/fit controls (UI), continuous/single toggle, edit mode toggle |
+| `ViewerToolbar.tsx` | Page nav, zoom in/out, fit width, fit page, continuous/single toggle, edit mode toggle |
 | `EditorToolbar.tsx` | Rotate, delete, import, extract actions |
 | `EditorPanel.tsx` | Move Up/Down, export, print; selection summary and status |
 | `StatusToast.tsx` | Dismissible success confirmation |
 | `usePdfFromBytes.ts` | Loads PDF.js document from `ArrayBuffer`; exposes load status and page count |
 | `usePdfEditor.ts` | Edit session state; applies page ops; rebuilds bytes with pdf-lib |
-| `lib/pdfjs/*` | Worker setup, document load, page render helper |
+| `useViewerZoom.ts` | `zoomScale` state, zoom in/out, fit-to-width and fit-page from container + page dimensions |
+| `lib/pdfjs/*` | Worker setup, document load, page render helper, page dimension lookup |
+| `lib/viewport/zoom.ts` | Pure scale clamp, zoom steps, fit-to-width/page math |
 | `lib/pdfLib/buildDocument.ts` | Builds exportable PDF bytes from page model |
 | `lib/editor/pageOperations.ts` | Pure functions: rotate, delete, move, extract page lists |
 | `lib/editor/selection.ts` | Pure functions: toggle/sort page selection |
@@ -120,7 +124,7 @@ Future host app (not in repo):
 
 | State | Examples | Owner |
 | --- | --- | --- |
-| Document/view | `currentPage`, `viewMode`, `scale`, PDF.js `loadStatus` | `App.tsx` + `usePdfFromBytes` |
+| Document/view | `currentPage`, `viewMode`, `zoomScale`, PDF.js `loadStatus` | `App.tsx` + `useViewerZoom` + `usePdfFromBytes` |
 | File/edit session | `fileName`, `originalBytes`, `pdfBytes`, `pages[]`, `selectedPages`, `isDirty`, `status` | `usePdfEditor` |
 | UI | `isEditMode`, toast message, file read errors | `App.tsx` |
 
@@ -151,9 +155,9 @@ A production embed might later add context, Zustand, or host-app-provided state 
 | Upload | Local `File` / drag-drop only | Simple, demo-ready | No upload history, virus scan, or storage |
 | WebAssembly | **Not used** | pdfjs-dist and pdf-lib run without WASM claims in this repo | Less performance headroom for huge docs vs native/WASM SDKs |
 | Linearized loading | **Not demonstrated** | Local files use full `ArrayBuffer`; true byte-range streaming needs HTTP range requests + server-hosted linearized PDF | Documented as production consideration only |
-| Zoom/fit | `useViewerZoom` + container ref + page viewport math | Fit uses current page dimensions; scale clamped 25%–300% | Fit accuracy depends on container layout (manual check) |
+| Zoom/fit | `useViewerZoom` + viewer container ref + PDF page viewport math | Toolbar updates PDF.js render scale (25%–300%); fit uses current page dimensions | Visual sizing requires manual browser validation |
 | Reorder | Move Up/Down buttons | Stable MVP without drag-and-drop complexity | Slower UX for large reorder jobs |
-| Testing | Vitest + RTL for logic/shell; manual for canvas/print | Automated tests avoid claiming render fidelity | PDF.js canvas and print dialog require manual checks |
+| Testing | Vitest + RTL (38 tests, 10 files); manual for canvas/print/export | Covers shell, toolbar wiring, editor helpers, zoom math, pdf-lib rebuild | PDF.js canvas, print dialog, exported files, and visual zoom/fit require manual checks |
 
 ### Performance
 
@@ -168,16 +172,23 @@ A production embed might later add context, Zustand, or host-app-provided state 
 
 ## 8. Known Limitations
 
-- **No text search** within the PDF viewer.
-- **No annotation or redaction** tools.
-- **No form filling, signatures, or bookmarks**.
-- **No undo/redo** for edit operations.
-- **No backend** upload, authentication, database, or OCR.
-- **No WebAssembly** PDF engine in this implementation.
-- **No true linearized / byte-range loading** demo (local files only).
+### Deferred (not implemented)
+
+- **WebAssembly-backed PDF rendering** — not used; PDF.js and pdf-lib run in JavaScript.
+- **True linearized / byte-range HTTP loading** — not demonstrated; local files load as a full `ArrayBuffer`.
+- **Backend upload API**, **authentication**, **database persistence**, **OCR**, and **scan integration**.
+- **Redaction**, **text annotations**, **digital signatures**, and **bookmark read/write**.
+- **In-document text search** within the viewer.
+
+### MVP constraints
+
 - **Reorder** moves one step at a time (edge of selection block), not drag-and-drop.
 - **Import** appends all pages from the chosen PDF (no page-range picker).
-- **Automated tests** do not validate PDF.js rendering fidelity or the native print dialog.
+- **No undo/redo** for edit operations.
+
+### Validation gaps
+
+Automated tests (38 tests, 10 files) cover app shell behavior, toolbar wiring, editor helpers, zoom scale math, and in-memory pdf-lib rebuild logic. They do **not** validate PDF.js canvas rendering fidelity, browser print, exported PDF files opened externally, or visual zoom/fit sizing — those require **manual** browser validation (see `C/validation.md`).
 
 ## 9. If I Had One More Day
 
