@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
-import { buildEditedFileName, downloadPdfBytes } from '../lib/fileIO'
+import { buildEditedFileName, downloadPdfBytes, printPdfBytes } from '../lib/fileIO'
+import { MESSAGES, normalizeEditorError } from '../lib/messages'
 import {
   buildPdfBytes,
   getPdfPageCount,
@@ -56,8 +57,7 @@ export function usePdfEditor() {
       setIsDirty(true)
       setStatus({ message, error: null, isBusy: false })
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unable to update the edited PDF.'
+      const errorMessage = normalizeEditorError(error, MESSAGES.exportFailed)
       setStatus({ message: null, error: errorMessage, isBusy: false })
       throw error
     }
@@ -77,10 +77,9 @@ export function usePdfEditor() {
       setPdfBytes(copiedBytes)
       setSelectedPages(new Set())
       setIsDirty(false)
-      setStatus({ message: 'Document loaded.', error: null, isBusy: false })
+      setStatus({ message: MESSAGES.opened(name), error: null, isBusy: false })
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unable to prepare the PDF for editing.'
+      const errorMessage = normalizeEditorError(error, MESSAGES.loadFailed())
       setFileName(null)
       setOriginalBytes(null)
       setPages([])
@@ -125,7 +124,7 @@ export function usePdfEditor() {
   const rotateSelected = useCallback(
     async (direction: 'left' | 'right') => {
       if (selectedPages.size === 0) {
-        setStatus({ message: null, error: 'Select at least one page to rotate.', isBusy: false })
+        setStatus({ message: null, error: MESSAGES.noSelection, isBusy: false })
         return
       }
 
@@ -153,7 +152,7 @@ export function usePdfEditor() {
 
   const deleteSelected = useCallback(async () => {
     if (selectedPages.size === 0) {
-      setStatus({ message: null, error: 'Select at least one page to delete.', isBusy: false })
+      setStatus({ message: null, error: MESSAGES.noSelection, isBusy: false })
       return
     }
 
@@ -179,7 +178,7 @@ export function usePdfEditor() {
   const moveSelected = useCallback(
     async (direction: 'up' | 'down') => {
       if (selectedPages.size === 0) {
-        setStatus({ message: null, error: 'Select at least one page to move.', isBusy: false })
+        setStatus({ message: null, error: MESSAGES.noSelection, isBusy: false })
         return
       }
 
@@ -223,7 +222,7 @@ export function usePdfEditor() {
   const importPdf = useCallback(
     async (bytes: ArrayBuffer) => {
       if (pages.length === 0) {
-        setStatus({ message: null, error: 'Open a PDF before importing pages.', isBusy: false })
+        setStatus({ message: null, error: MESSAGES.noDocument, isBusy: false })
         return
       }
 
@@ -241,11 +240,10 @@ export function usePdfEditor() {
 
         await applyPages(
           [...pages, ...importedPages],
-          `Imported ${importPageCount} page${importPageCount === 1 ? '' : 's'}.`,
+          MESSAGES.imported(importPageCount),
         )
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : 'Unable to import the selected PDF.'
+        const errorMessage = normalizeEditorError(error, MESSAGES.exportFailed)
         setStatus({ message: null, error: errorMessage, isBusy: false })
       }
     },
@@ -254,7 +252,7 @@ export function usePdfEditor() {
 
   const extractSelected = useCallback(async () => {
     if (selectedPages.size === 0) {
-      setStatus({ message: null, error: 'Select at least one page to extract.', isBusy: false })
+      setStatus({ message: null, error: MESSAGES.noSelection, isBusy: false })
       return
     }
 
@@ -267,20 +265,19 @@ export function usePdfEditor() {
       const downloadName = buildEditedFileName(fileName ?? 'document', 'extract')
       downloadPdfBytes(output, downloadName)
       setStatus({
-        message: `Extracted ${selected.length} page${selected.length === 1 ? '' : 's'}.`,
+        message: MESSAGES.extracted(downloadName, selected.length),
         error: null,
         isBusy: false,
       })
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unable to extract the selected pages.'
+      const errorMessage = normalizeEditorError(error, MESSAGES.exportFailed)
       setStatus({ message: null, error: errorMessage, isBusy: false })
     }
   }, [fileName, pages, selectedPages])
 
   const exportEdited = useCallback(async () => {
-    if (pages.length === 0 || !pdfBytes) {
-      setStatus({ message: null, error: 'Open a PDF before exporting.', isBusy: false })
+    if (pages.length === 0 || !pdfBytes || !fileName) {
+      setStatus({ message: null, error: MESSAGES.noDocument, isBusy: false })
       return
     }
 
@@ -289,20 +286,73 @@ export function usePdfEditor() {
     try {
       const output = await buildPdfBytes(pages)
       const downloadName = isDirty
-        ? buildEditedFileName(fileName ?? 'document', 'edited')
-        : (fileName ?? 'document.pdf')
+        ? buildEditedFileName(fileName, 'edited')
+        : fileName
       downloadPdfBytes(output, downloadName)
-      setStatus({ message: 'Edited PDF downloaded.', error: null, isBusy: false })
+      setStatus({
+        message: isDirty ? MESSAGES.savedEdited(downloadName) : MESSAGES.exported(downloadName),
+        error: null,
+        isBusy: false,
+      })
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unable to export the edited PDF.'
+      const errorMessage = normalizeEditorError(error, MESSAGES.exportFailed)
       setStatus({ message: null, error: errorMessage, isBusy: false })
     }
   }, [fileName, isDirty, pages, pdfBytes])
 
   const downloadCurrent = useCallback(async () => {
-    await exportEdited()
-  }, [exportEdited])
+    if (!fileName || !originalBytes) {
+      setStatus({ message: null, error: MESSAGES.noDocument, isBusy: false })
+      return
+    }
+
+    setStatus({ message: null, error: null, isBusy: true })
+
+    try {
+      if (isDirty) {
+        const output = await buildPdfBytes(pages)
+        const downloadName = buildEditedFileName(fileName, 'edited')
+        downloadPdfBytes(output, downloadName)
+        setStatus({
+          message: MESSAGES.savedEdited(downloadName),
+          error: null,
+          isBusy: false,
+        })
+      } else {
+        downloadPdfBytes(new Uint8Array(originalBytes), fileName)
+        setStatus({
+          message: MESSAGES.savedOriginal(fileName),
+          error: null,
+          isBusy: false,
+        })
+      }
+    } catch (error) {
+      const errorMessage = normalizeEditorError(error, MESSAGES.exportFailed)
+      setStatus({ message: null, error: errorMessage, isBusy: false })
+    }
+  }, [fileName, isDirty, originalBytes, pages])
+
+  const printCurrent = useCallback(async () => {
+    if (!fileName || !originalBytes) {
+      setStatus({ message: null, error: MESSAGES.noDocument, isBusy: false })
+      return
+    }
+
+    setStatus({ message: null, error: null, isBusy: true })
+
+    try {
+      const output = isDirty ? await buildPdfBytes(pages) : new Uint8Array(originalBytes)
+      await printPdfBytes(output)
+      setStatus({
+        message: MESSAGES.printed(fileName),
+        error: null,
+        isBusy: false,
+      })
+    } catch (error) {
+      const errorMessage = normalizeEditorError(error, MESSAGES.printFailed)
+      setStatus({ message: null, error: errorMessage, isBusy: false })
+    }
+  }, [fileName, isDirty, originalBytes, pages])
 
   return {
     fileName,
@@ -325,6 +375,7 @@ export function usePdfEditor() {
     extractSelected,
     exportEdited,
     downloadCurrent,
+    printCurrent,
     clampPage,
   }
 }

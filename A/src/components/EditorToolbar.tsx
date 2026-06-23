@@ -1,5 +1,6 @@
 type EditorToolbarProps = {
   disabled?: boolean
+  disableSelectionActions?: boolean
   onRotateLeft?: () => void
   onRotateRight?: () => void
   onDelete?: () => void
@@ -9,19 +10,22 @@ type EditorToolbarProps = {
 
 export default function EditorToolbar({
   disabled = true,
+  disableSelectionActions = true,
   onRotateLeft,
   onRotateRight,
   onDelete,
   onImport,
   onExtract,
 }: EditorToolbarProps) {
+  const pageActionDisabled = disabled || disableSelectionActions
+
   return (
     <div className="editor-toolbar" role="toolbar" aria-label="Editor controls">
       <div className="toolbar-group" aria-label="Page operations">
         <button
           type="button"
           className="toolbar-btn"
-          disabled={disabled}
+          disabled={pageActionDisabled}
           title="Rotate left"
           onClick={onRotateLeft}
         >
@@ -30,7 +34,7 @@ export default function EditorToolbar({
         <button
           type="button"
           className="toolbar-btn"
-          disabled={disabled}
+          disabled={pageActionDisabled}
           title="Rotate right"
           onClick={onRotateRight}
         >
@@ -39,7 +43,7 @@ export default function EditorToolbar({
         <button
           type="button"
           className="toolbar-btn"
-          disabled={disabled}
+          disabled={pageActionDisabled}
           title="Delete selected pages"
           onClick={onDelete}
         >
@@ -60,7 +64,7 @@ export default function EditorToolbar({
         <button
           type="button"
           className="toolbar-btn"
-          disabled={disabled}
+          disabled={pageActionDisabled}
           title="Extract selected pages"
           onClick={onExtract}
         >

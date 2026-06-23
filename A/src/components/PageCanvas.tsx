@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
+import { MESSAGES } from '../lib/messages'
 
 type PageCanvasProps = {
   pdfDoc: PDFDocumentProxy
@@ -90,7 +91,10 @@ export default function PageCanvas({
           return
         }
 
-        const message = error instanceof Error ? error.message : 'Failed to render page.'
+        const message = MESSAGES.renderFailed(
+          pageNumber,
+          error instanceof Error ? error.message : undefined,
+        )
         setRenderError(message)
         setIsRendering(false)
       }
@@ -111,7 +115,7 @@ export default function PageCanvas({
   if (renderError) {
     return (
       <div className="pdf-page-canvas pdf-page-canvas--error" id={id} role="alert">
-        <p className="pdf-page-canvas__error-title">Unable to render page {pageNumber}</p>
+        <p className="pdf-page-canvas__error-title">Page display error</p>
         <p className="pdf-page-canvas__error-text">{renderError}</p>
       </div>
     )

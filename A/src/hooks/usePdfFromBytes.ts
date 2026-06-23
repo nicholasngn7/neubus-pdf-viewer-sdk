@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist'
 import { loadPdfDocument } from '../lib/pdfjs/loadDocument'
+import { MESSAGES } from '../lib/messages'
 import type { LoadStatus } from '../types/pdf'
 
 export type PdfDocumentState = {
@@ -64,8 +65,9 @@ export function usePdfFromBytes(pdfBytes: ArrayBuffer | null): PdfDocumentState 
           return
         }
 
-        const message =
-          error instanceof Error ? error.message : 'Unable to load the selected PDF.'
+        const message = MESSAGES.loadFailed(
+          error instanceof Error ? error.message : undefined,
+        )
 
         setState({
           pdfDoc: null,

@@ -3,9 +3,11 @@ import EditorPanel from './components/EditorPanel'
 import EditorToolbar from './components/EditorToolbar'
 import PageThumbnailList from './components/PageThumbnailList'
 import PdfViewer from './components/PdfViewer'
+import StatusToast from './components/StatusToast'
 import ViewerToolbar from './components/ViewerToolbar'
 import { usePdfEditor } from './hooks/usePdfEditor'
 import type { PdfDocumentState } from './hooks/usePdfFromBytes'
+import { MESSAGES } from './lib/messages'
 import type { ViewMode } from './types/pdf'
 import './App.css'
 
@@ -45,10 +47,13 @@ function App() {
     extractSelected,
     exportEdited,
     downloadCurrent,
+    printCurrent,
     clampPage,
   } = editor
 
   const [fileReadError, setFileReadError] = useState<string | null>(null)
+  const [appError, setAppError] = useState<string | null>(null)
+  const [successToast, setSuccessToast] = useState<string | null>(null)
   const [documentState, setDocumentState] = useState<PdfDocumentState>(initialDocumentState)
   const [currentPage, setCurrentPage] = useState(1)
   const [viewMode, setViewMode] = useState<ViewMode>('continuous')
@@ -58,19 +63,33 @@ function App() {
   const { pdfDoc, pageCount: viewerPageCount, loadStatus, loadError } = documentState
   const pageCount = viewerPageCount || editorPageCount
   const hasDocument = editorPageCount > 0 && (loadStatus === 'ready' || loadStatus === 'loading')
+  const editorDisabled = !hasDocument || !isEditMode || editorStatus.isBusy
+  const selectionRequired = selectedPages.size === 0
 
   useEffect(() => {
     setCurrentPage((page) => clampPage(page, editorPageCount))
   }, [clampPage, editorPageCount])
 
+  useEffect(() => {
+    if (editorStatus.message && !editorStatus.error) {
+      setSuccessToast(editorStatus.message)
+    }
+  }, [editorStatus.message, editorStatus.error])
+
+  const clearTransientErrors = () => {
+    setFileReadError(null)
+    setAppError(null)
+  }
+
   const handleFileSelect = useCallback(
     async (file: File) => {
       if (!isPdfFile(file)) {
-        window.alert('Please select a PDF file.')
+        clearTransientErrors()
+        setFileReadError(MESSAGES.invalidFile(file.name))
         return
       }
 
-      setFileReadError(null)
+      clearTransientErrors()
       setDocumentState(initialDocumentState)
       setIsEditMode(false)
 
@@ -80,14 +99,14 @@ function App() {
         setCurrentPage(1)
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : 'Unable to read the selected PDF file.'
+          error instanceof Error ? error.message : MESSAGES.readFailed
         resetEditor()
-        setFileReadError(message)
+        setFileReadError(MESSAGES.loadFailed(message))
         setDocumentState({
           pdfDoc: null,
           pageCount: 0,
           loadStatus: 'error',
-          loadError: message,
+          loadError: MESSAGES.loadFailed(message),
         })
       }
     },
@@ -125,11 +144,12 @@ function App() {
     }
 
     if (!isPdfFile(file)) {
-      window.alert('Please select a PDF file to import.')
+      setAppError(MESSAGES.invalidFile(file.name))
       event.target.value = ''
       return
     }
 
+    clearTransientErrors()
     void file.arrayBuffer().then((bytes) => importPdf(bytes))
     event.target.value = ''
   }
@@ -172,7 +192,7 @@ function App() {
     })
   }
 
-  const activeError = fileReadError ?? loadError ?? editorStatus.error
+  const activeError = fileReadError ?? loadError ?? editorStatus.error ?? appError
 
   return (
     <div className="app">
@@ -217,6 +237,14 @@ function App() {
           </button>
           <button
             type="button"
+            className="btn btn--ghost"
+            disabled={!hasDocument || editorStatus.isBusy}
+            onClick={() => runEditorAction(printCurrent)}
+          >
+            Print
+          </button>
+          <button
+            type="button"
             className="btn btn--primary"
             disabled={!hasDocument || editorStatus.isBusy}
             onClick={() => runEditorAction(downloadCurrent)}
@@ -226,15 +254,17 @@ function App() {
         </div>
       </header>
 
+      {successToast && (
+        <StatusToast
+          message={successToast}
+          variant="success"
+          onDismiss={() => setSuccessToast(null)}
+        />
+      )}
+
       {activeError && (
         <div className="app-error-banner" role="alert">
           {activeError}
-        </div>
-      )}
-
-      {editorStatus.message && !activeError && (
-        <div className="app-status-banner" role="status">
-          {editorStatus.message}
         </div>
       )}
 
@@ -278,7 +308,8 @@ function App() {
 
         <aside className="app-edit-panel" aria-label="Edit mode panel">
           <EditorToolbar
-            disabled={!hasDocument || !isEditMode || editorStatus.isBusy}
+            disabled={editorDisabled}
+            disableSelectionActions={selectionRequired}
             onRotateLeft={() => runEditorAction(() => rotateSelected('left'))}
             onRotateRight={() => runEditorAction(() => rotateSelected('right'))}
             onDelete={() => runEditorAction(deleteSelected)}
@@ -287,7 +318,8 @@ function App() {
           />
 
           <EditorPanel
-            disabled={!hasDocument || !isEditMode}
+            disabled={editorDisabled}
+            disableSelectionActions={selectionRequired}
             isEditMode={isEditMode}
             selectedCount={selectedPages.size}
             pageCount={pageCount}
@@ -298,6 +330,7 @@ function App() {
             onMoveUp={() => runEditorAction(() => moveSelected('up'))}
             onMoveDown={() => runEditorAction(() => moveSelected('down'))}
             onExport={() => runEditorAction(exportEdited)}
+            onPrint={() => runEditorAction(printCurrent)}
           />
         </aside>
       </div>
