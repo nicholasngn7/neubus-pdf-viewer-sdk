@@ -124,6 +124,17 @@
   background: rgba(255, 255, 255, 0.16);
 }
 
+.btn--secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+  border-color: var(--color-border-strong);
+}
+
 .app-workspace {
   display: flex;
   flex: 1;
@@ -135,6 +146,14 @@
   background: #fef2f2;
   color: #b91c1c;
   border-bottom: 1px solid #fecaca;
+  font-size: 13px;
+}
+
+.app-status-banner {
+  padding: 10px 20px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-bottom: 1px solid #bfdbfe;
   font-size: 13px;
 }
 
@@ -243,6 +262,17 @@
   letter-spacing: 0.06em;
   color: var(--color-text-subtle);
   border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.thumbnail-list__hint {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
 }
 
 .thumbnail-list__body {
@@ -281,6 +311,15 @@
 .thumbnail-item.is-active {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.thumbnail-item.is-selected {
+  background: var(--color-primary-soft);
+  border-color: #93c5fd;
+}
+
+.thumbnail-item.is-selected.is-active {
+  box-shadow: 0 0 0 2px var(--color-primary);
 }
 
 .thumbnail-item__preview {
@@ -581,6 +620,56 @@
   font-size: 12px;
   color: var(--color-text-muted);
   line-height: 1.5;
+}
+
+.edit-panel__section {
+  margin-bottom: 18px;
+}
+
+.edit-panel__section-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.edit-panel__meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.edit-panel__button-row {
+  display: flex;
+  gap: 8px;
+}
+
+.edit-panel__export-btn {
+  width: 100%;
+}
+
+.edit-panel__hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--color-text-subtle);
+  line-height: 1.45;
+}
+
+.edit-panel__status {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.edit-panel__status--error {
+  background: #fef2f2;
+  color: #b91c1c;
 }
 
 .edit-panel__tool-list {

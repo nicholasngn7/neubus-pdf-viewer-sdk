@@ -1,8 +1,10 @@
-import { useCallback, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import EditorPanel from './components/EditorPanel'
 import EditorToolbar from './components/EditorToolbar'
 import PageThumbnailList from './components/PageThumbnailList'
 import PdfViewer from './components/PdfViewer'
 import ViewerToolbar from './components/ViewerToolbar'
+import { usePdfEditor } from './hooks/usePdfEditor'
 import type { PdfDocumentState } from './hooks/usePdfFromBytes'
 import type { ViewMode } from './types/pdf'
 import './App.css'
@@ -20,65 +22,92 @@ function isPdfFile(file: File): boolean {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
 }
 
-function clampPage(page: number, pageCount: number): number {
-  if (pageCount <= 0) {
-    return 1
-  }
-  return Math.min(Math.max(page, 1), pageCount)
-}
-
 function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [fileName, setFileName] = useState<string | null>(null)
-  const [pdfBytes, setPdfBytes] = useState<ArrayBuffer | null>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
+
+  const editor = usePdfEditor()
+  const {
+    fileName,
+    pdfBytes,
+    pageCount: editorPageCount,
+    selectedPages,
+    status: editorStatus,
+    isDirty,
+    openFile,
+    resetEditor,
+    clearSelection,
+    togglePageSelection,
+    rotateSelected,
+    deleteSelected,
+    moveSelected,
+    importPdf,
+    extractSelected,
+    exportEdited,
+    downloadCurrent,
+    clampPage,
+  } = editor
+
   const [fileReadError, setFileReadError] = useState<string | null>(null)
   const [documentState, setDocumentState] = useState<PdfDocumentState>(initialDocumentState)
-
   const [currentPage, setCurrentPage] = useState(1)
   const [viewMode, setViewMode] = useState<ViewMode>('continuous')
   const [scale] = useState(DEFAULT_SCALE)
   const [isEditMode, setIsEditMode] = useState(false)
 
-  const { pdfDoc, pageCount, loadStatus, loadError } = documentState
-  const hasDocument = loadStatus === 'ready' && pdfDoc !== null
+  const { pdfDoc, pageCount: viewerPageCount, loadStatus, loadError } = documentState
+  const pageCount = viewerPageCount || editorPageCount
+  const hasDocument = editorPageCount > 0 && (loadStatus === 'ready' || loadStatus === 'loading')
 
-  const handleFileSelect = useCallback(async (file: File) => {
-    if (!isPdfFile(file)) {
-      window.alert('Please select a PDF file.')
-      return
-    }
+  useEffect(() => {
+    setCurrentPage((page) => clampPage(page, editorPageCount))
+  }, [clampPage, editorPageCount])
 
-    setFileReadError(null)
-    setDocumentState(initialDocumentState)
+  const handleFileSelect = useCallback(
+    async (file: File) => {
+      if (!isPdfFile(file)) {
+        window.alert('Please select a PDF file.')
+        return
+      }
 
-    try {
-      const bytes = await file.arrayBuffer()
-      setFileName(file.name)
-      setPdfBytes(bytes.slice(0))
-      setCurrentPage(1)
+      setFileReadError(null)
+      setDocumentState(initialDocumentState)
       setIsEditMode(false)
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unable to read the selected PDF file.'
-      setFileName(null)
-      setPdfBytes(null)
-      setFileReadError(message)
-      setDocumentState({
-        pdfDoc: null,
-        pageCount: 0,
-        loadStatus: 'error',
-        loadError: message,
-      })
-    }
-  }, [])
 
-  const handleDocumentStateChange = useCallback((state: PdfDocumentState) => {
-    setDocumentState(state)
-    setCurrentPage((page) => clampPage(page, state.pageCount))
-  }, [])
+      try {
+        const bytes = await file.arrayBuffer()
+        await openFile(file.name, bytes)
+        setCurrentPage(1)
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unable to read the selected PDF file.'
+        resetEditor()
+        setFileReadError(message)
+        setDocumentState({
+          pdfDoc: null,
+          pageCount: 0,
+          loadStatus: 'error',
+          loadError: message,
+        })
+      }
+    },
+    [openFile, resetEditor],
+  )
+
+  const handleDocumentStateChange = useCallback(
+    (state: PdfDocumentState) => {
+      setDocumentState(state)
+      setCurrentPage((page) => clampPage(page, state.pageCount || editorPageCount))
+    },
+    [clampPage, editorPageCount],
+  )
 
   const openFilePicker = () => {
     fileInputRef.current?.click()
+  }
+
+  const openImportPicker = () => {
+    importInputRef.current?.click()
   }
 
   const handleHeaderFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -89,25 +118,44 @@ function App() {
     event.target.value = ''
   }
 
-  const handleQuickDownload = () => {
-    if (!pdfBytes || !fileName) {
+  const handleImportFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) {
       return
     }
 
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = fileName
-    anchor.click()
-    URL.revokeObjectURL(url)
+    if (!isPdfFile(file)) {
+      window.alert('Please select a PDF file to import.')
+      event.target.value = ''
+      return
+    }
+
+    void file.arrayBuffer().then((bytes) => importPdf(bytes))
+    event.target.value = ''
+  }
+
+  const handleToggleEditMode = () => {
+    setIsEditMode((value) => {
+      if (value) {
+        clearSelection()
+      }
+      return !value
+    })
+  }
+
+  const handlePageSelect = (page: number) => {
+    setCurrentPage(clampPage(page, pageCount))
+  }
+
+  const handlePageToggleSelect = (page: number) => {
+    togglePageSelection(page)
   }
 
   const goToPage = useCallback(
     (page: number) => {
       setCurrentPage(clampPage(page, pageCount))
     },
-    [pageCount],
+    [clampPage, pageCount],
   )
 
   const goToPreviousPage = () => {
@@ -118,7 +166,13 @@ function App() {
     goToPage(currentPage + 1)
   }
 
-  const activeError = fileReadError ?? loadError
+  const runEditorAction = (action: () => Promise<void>) => {
+    void action().catch(() => {
+      // Errors are surfaced through editor status state.
+    })
+  }
+
+  const activeError = fileReadError ?? loadError ?? editorStatus.error
 
   return (
     <div className="app">
@@ -137,6 +191,7 @@ function App() {
             title={fileName ?? undefined}
           >
             {fileName ?? 'No file selected'}
+            {isDirty ? ' (edited)' : ''}
           </span>
         </div>
 
@@ -149,14 +204,22 @@ function App() {
             onChange={handleHeaderFileChange}
             aria-label="Open PDF file"
           />
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="app-header__file-input"
+            onChange={handleImportFileChange}
+            aria-label="Import PDF file"
+          />
           <button type="button" className="btn btn--ghost" onClick={openFilePicker}>
             Open PDF
           </button>
           <button
             type="button"
             className="btn btn--primary"
-            disabled={!hasDocument}
-            onClick={handleQuickDownload}
+            disabled={!hasDocument || editorStatus.isBusy}
+            onClick={() => runEditorAction(downloadCurrent)}
           >
             Quick Download
           </button>
@@ -169,13 +232,22 @@ function App() {
         </div>
       )}
 
+      {editorStatus.message && !activeError && (
+        <div className="app-status-banner" role="status">
+          {editorStatus.message}
+        </div>
+      )}
+
       <div className="app-workspace">
         <div className="app-sidebar">
           <PageThumbnailList
             pdfDoc={pdfDoc}
             pageCount={pageCount}
             currentPage={currentPage}
-            onPageSelect={goToPage}
+            selectedPages={selectedPages}
+            isEditMode={isEditMode}
+            onPageSelect={handlePageSelect}
+            onPageToggleSelect={handlePageToggleSelect}
           />
         </div>
 
@@ -191,7 +263,7 @@ function App() {
             onNextPage={goToNextPage}
             onPageChange={goToPage}
             onViewModeChange={setViewMode}
-            onToggleEditMode={() => setIsEditMode((value) => !value)}
+            onToggleEditMode={handleToggleEditMode}
           />
           <PdfViewer
             fileName={fileName}
@@ -205,32 +277,28 @@ function App() {
         </main>
 
         <aside className="app-edit-panel" aria-label="Edit mode panel">
-          <EditorToolbar disabled={!hasDocument || !isEditMode} />
+          <EditorToolbar
+            disabled={!hasDocument || !isEditMode || editorStatus.isBusy}
+            onRotateLeft={() => runEditorAction(() => rotateSelected('left'))}
+            onRotateRight={() => runEditorAction(() => rotateSelected('right'))}
+            onDelete={() => runEditorAction(deleteSelected)}
+            onImport={openImportPicker}
+            onExtract={() => runEditorAction(extractSelected)}
+          />
 
-          <div className="edit-panel__header">
-            <h2 className="edit-panel__title">Edit mode</h2>
-            <p className="edit-panel__subtitle">
-              {isEditMode
-                ? 'Page editing tools will appear here.'
-                : 'Enable edit mode from the viewer toolbar to modify pages.'}
-            </p>
-          </div>
-
-          <div className="edit-panel__body">
-            <div className="edit-panel__placeholder">
-              <p className="edit-panel__placeholder-title">Editor panel placeholder</p>
-              <p className="edit-panel__placeholder-text">
-                This area will host page operations such as rotate, reorder, delete,
-                import, extract, and export once editing is implemented.
-              </p>
-              <ul className="edit-panel__tool-list">
-                <li>Rotate selected pages</li>
-                <li>Reorder and delete pages</li>
-                <li>Import or extract pages</li>
-                <li>Export edited PDF</li>
-              </ul>
-            </div>
-          </div>
+          <EditorPanel
+            disabled={!hasDocument || !isEditMode}
+            isEditMode={isEditMode}
+            selectedCount={selectedPages.size}
+            pageCount={pageCount}
+            isDirty={isDirty}
+            isBusy={editorStatus.isBusy}
+            statusMessage={editorStatus.message}
+            statusError={editorStatus.error}
+            onMoveUp={() => runEditorAction(() => moveSelected('up'))}
+            onMoveDown={() => runEditorAction(() => moveSelected('down'))}
+            onExport={() => runEditorAction(exportEdited)}
+          />
         </aside>
       </div>
     </div>
