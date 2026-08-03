@@ -1,6 +1,6 @@
 # PDF Viewer SDK MVP
 
-A timeboxed browser-based PDF viewer/editor MVP built for the Neubus Staff Software Engineer exercise.
+A timeboxed browser-based PDF viewer/editor MVP built for the Staff Software Engineer exercise.
 
 This project is inspired by the provided demo video, which appears to show a document/PDF viewer embedded inside a larger records or document-management application. For this MVP, I focused on the reusable PDF viewer/editor boundary rather than rebuilding the full parent records application.
 
