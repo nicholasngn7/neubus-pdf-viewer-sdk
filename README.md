@@ -1,4 +1,4 @@
-# Neubus PDF Viewer SDK MVP
+# PDF Viewer SDK MVP
 
 A timeboxed browser-based PDF viewer/editor MVP built for the Neubus Staff Software Engineer exercise.
 
